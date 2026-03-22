@@ -10,8 +10,13 @@ import {
 } from 'react-router-dom'
 import './App.css'
 
+const defaultApiBaseUrl = import.meta.env.PROD
+  ? 'https://swasthiq-ej7g.onrender.com/api'
+  : '/api'
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl).replace(/\/+$/, '')
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: apiBaseUrl,
   timeout: 10000,
 })
 

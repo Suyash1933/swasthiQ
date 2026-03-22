@@ -375,11 +375,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
-    if origin.strip()
+default_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://swasthi-q-two.vercel.app",
 ]
+configured_cors_origins = os.getenv("CORS_ORIGINS", "")
+allowed_origins: list[str] = []
+
+for origin in [*default_cors_origins, *configured_cors_origins.split(",")]:
+    normalized_origin = origin.strip().rstrip("/")
+    if normalized_origin and normalized_origin not in allowed_origins:
+        allowed_origins.append(normalized_origin)
 
 app.add_middleware(
     CORSMiddleware,
@@ -399,7 +406,7 @@ def health_check():
 def root():
     return {
         "message": "SwasthiQ backend is running.",
-        "frontend_url": "http://127.0.0.1:5173",
+        "frontend_url": "https://swasthi-q-two.vercel.app",
         "docs_url": "/docs",
         "health_url": "/api/health",
         "database": DATABASE_LABEL,

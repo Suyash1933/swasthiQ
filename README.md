@@ -53,12 +53,21 @@ Example:
 
 ```env
 DATABASE_URL=postgresql://username:password@host/database
-CORS_ORIGINS=https://your-frontend.onrender.com,http://localhost:5173
+CORS_ORIGINS=https://swasthi-q-two.vercel.app,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 If `DATABASE_URL` is not set, the backend falls back to `backend/pharmacy.db`.
 
 If Render gives you an internal PostgreSQL URL with a host like `dpg-...`, use that value in the Render backend service environment. For local development from your own laptop, use the External Database URL from Render instead.
+
+For the current deployed setup:
+
+```env
+VITE_API_BASE_URL=https://swasthiq-ej7g.onrender.com/api
+CORS_ORIGINS=https://swasthi-q-two.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+```
+
+The backend always allows `https://swasthi-q-two.vercel.app` plus the local Vite URLs, and any extra origins in `CORS_ORIGINS` are added on top.
 
 ## REST API Contracts
 
