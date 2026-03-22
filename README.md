@@ -3,13 +3,14 @@
 This repository now includes a working backend setup for the SwasthiQ pharmacy hiring assignment:
 
 - `frontend/` contains the React app.
-- `backend/` contains a FastAPI REST API backed by SQLite.
+- `backend/` contains a FastAPI REST API backed by PostgreSQL through `DATABASE_URL`, with SQLite available only as a local fallback.
 
 ## Backend Stack
 
 - FastAPI
 - SQLAlchemy
-- SQLite
+- PostgreSQL
+- SQLite fallback for local development
 - Uvicorn
 
 ## Backend Features
@@ -30,6 +31,11 @@ venv\Scripts\python.exe -m pip install -r requirements.txt
 venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
+or short
+
+cd backend
+venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
 ### 2. Start the frontend
 
 ```powershell
@@ -38,6 +44,21 @@ npm run dev
 ```
 
 The Vite dev server is configured to proxy `/api` calls to `http://127.0.0.1:8000`.
+
+## Environment Variables
+
+Backend reads `backend/.env` locally and Render environment variables in production.
+
+Example:
+
+```env
+DATABASE_URL=postgresql://username:password@host/database
+CORS_ORIGINS=https://your-frontend.onrender.com,http://localhost:5173
+```
+
+If `DATABASE_URL` is not set, the backend falls back to `backend/pharmacy.db`.
+
+If Render gives you an internal PostgreSQL URL with a host like `dpg-...`, use that value in the Render backend service environment. For local development from your own laptop, use the External Database URL from Render instead.
 
 ## REST API Contracts
 

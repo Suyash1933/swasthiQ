@@ -3,13 +3,14 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
 from collections import defaultdict
+import os
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, inspect, or_, select
 from sqlalchemy.orm import Session
 
-from .database import Base, engine, get_db
+from .database import Base, DATABASE_LABEL, USING_SQLITE, engine, get_db
 from .models import Medicine, PurchaseOrder, Sale, SaleItem
 from .schemas import (
     DashboardOverview,
@@ -317,6 +318,10 @@ def ensure_unique_batch_number(session: Session, batch_number: str, current_id: 
 
 
 def ensure_demo_schema() -> None:
+    if not USING_SQLITE:
+        Base.metadata.create_all(bind=engine)
+        return
+
     inspector = inspect(engine)
     expected_columns = {
         "medicines": {"generic_name", "supplier_name"},
@@ -370,9 +375,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -381,7 +392,7 @@ app.add_middleware(
 
 @app.get("/api/health", response_model=HealthResponse)
 def health_check():
-    return HealthResponse(status="ok", database="sqlite")
+    return HealthResponse(status="ok", database=DATABASE_LABEL)
 
 
 @app.get("/", include_in_schema=False)
@@ -391,6 +402,7 @@ def root():
         "frontend_url": "http://127.0.0.1:5173",
         "docs_url": "/docs",
         "health_url": "/api/health",
+        "database": DATABASE_LABEL,
     }
 
 
