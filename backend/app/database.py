@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -38,6 +39,14 @@ ALLOW_SQLITE_FALLBACK = os.getenv("ALLOW_SQLITE_FALLBACK", "true").strip().lower
     "false",
     "no",
 }
+DATABASE_CONNECT_RETRIES = max(
+    1,
+    int(os.getenv("DATABASE_CONNECT_RETRIES", "6" if RUNNING_ON_RENDER else "1")),
+)
+DATABASE_CONNECT_RETRY_DELAY_SECONDS = max(
+    1.0,
+    float(os.getenv("DATABASE_CONNECT_RETRY_DELAY_SECONDS", "3")),
+)
 
 
 class Base(DeclarativeBase):
@@ -53,14 +62,36 @@ def build_engine(database_url: str):
     return create_engine(database_url, **engine_kwargs)
 
 
+def validate_engine_connection(engine) -> None:
+    last_error = None
+
+    for attempt in range(1, DATABASE_CONNECT_RETRIES + 1):
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            return
+        except Exception as exc:  # pragma: no cover - network dependent
+            last_error = exc
+            logger.warning(
+                "Database connection attempt %s/%s failed: %s",
+                attempt,
+                DATABASE_CONNECT_RETRIES,
+                exc,
+            )
+            if attempt < DATABASE_CONNECT_RETRIES:
+                time.sleep(DATABASE_CONNECT_RETRY_DELAY_SECONDS)
+
+    if last_error is not None:
+        raise last_error
+
+
 def resolve_engine():
     primary_engine = build_engine(REQUESTED_DATABASE_URL)
     if REQUESTED_DATABASE_URL.startswith("sqlite"):
         return primary_engine, REQUESTED_DATABASE_URL, None
 
     try:
-        with primary_engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+        validate_engine_connection(primary_engine)
         return primary_engine, REQUESTED_DATABASE_URL, None
     except Exception as exc:
         primary_engine.dispose()

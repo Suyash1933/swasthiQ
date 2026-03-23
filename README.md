@@ -69,6 +69,8 @@ CORS_ORIGINS=https://swasthi-q-two.vercel.app,http://localhost:5173,http://127.0
 
 The backend always allows `https://swasthi-q-two.vercel.app` plus the local Vite URLs, and any extra origins in `CORS_ORIGINS` are added on top.
 
+If the backend is hosted on a free Render instance, the first request may return `503 Service Unavailable` while the service wakes up. The frontend now retries read requests automatically, but you may still see a short delay on the first load after inactivity.
+
 ## REST API Contracts
 
 ### Dashboard

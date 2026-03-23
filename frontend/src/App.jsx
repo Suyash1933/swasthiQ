@@ -14,11 +14,52 @@ const defaultApiBaseUrl = import.meta.env.PROD
   ? 'https://swasthiq-ej7g.onrender.com/api'
   : '/api'
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl).replace(/\/+$/, '')
+const usesRenderApi = apiBaseUrl.includes('onrender.com')
+const requestTimeout = usesRenderApi ? 20000 : 10000
 
 const api = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 10000,
+  timeout: requestTimeout,
 })
+
+async function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds)
+  })
+}
+
+function shouldRetryRequest(error) {
+  const status = error?.response?.status
+  return (
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    error?.code === 'ECONNABORTED' ||
+    !error?.response
+  )
+}
+
+async function requestWithRetry(config, options = {}) {
+  const method = (config.method || 'get').toLowerCase()
+  const retries = options.retries ?? (usesRenderApi && method === 'get' ? 2 : 0)
+  let lastError = null
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await api.request(config)
+    } catch (error) {
+      lastError = error
+      const canRetry = attempt < retries && shouldRetryRequest(error)
+      if (!canRetry) {
+        throw error
+      }
+
+      await wait(2500 * (attempt + 1))
+    }
+  }
+
+  throw lastError
+}
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -186,7 +227,7 @@ function DashboardPage({ refreshTick }) {
       setError('')
 
       try {
-        const response = await api.get('/dashboard/overview')
+        const response = await requestWithRetry({ url: '/dashboard/overview' })
         if (!ignore) {
           setOverview(response.data.data)
         }
@@ -222,7 +263,7 @@ function DashboardPage({ refreshTick }) {
           params.search = deferredSaleSearch.trim()
         }
 
-        const response = await api.get('/medicines', { params })
+        const response = await requestWithRetry({ url: '/medicines', params })
         if (!ignore) {
           setSaleItems(response.data.data)
         }
@@ -646,8 +687,8 @@ function InventoryPage({ refreshTick, onInventoryChange }) {
       }
 
       const [summaryResponse, medicinesResponse] = await Promise.all([
-        api.get('/inventory/summary'),
-        api.get('/medicines', { params }),
+        requestWithRetry({ url: '/inventory/summary' }),
+        requestWithRetry({ url: '/medicines', params }),
       ])
 
       const nextMedicines = medicinesResponse.data.data
@@ -1431,6 +1472,18 @@ function prettifyStatus(status) {
 }
 
 function extractApiError(error) {
+  if (error?.response?.status === 502 || error?.response?.status === 503 || error?.response?.status === 504) {
+    return 'The backend is waking up on Render. Please wait a few seconds and refresh if the data does not appear yet.'
+  }
+
+  if (error?.code === 'ECONNABORTED') {
+    return 'The backend took too long to respond. If Render was asleep, try again in a few seconds.'
+  }
+
+  if (!error?.response && usesRenderApi) {
+    return 'Could not reach the Render backend yet. Please wait a few seconds and try again.'
+  }
+
   return (
     error?.response?.data?.detail ||
     error?.response?.data?.message ||
